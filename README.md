@@ -18,3 +18,79 @@
   - 일반적인 SQL을 사용하는 경우 식별자가 같아도 쿼리를 날리고 또 쿼리를 날리면 new Member()를 반환하기 때문에 다른 값이 반환된다.
   - 하지만 자바 컬렉션에서 조회를 할 경우에는 참조 값이 같기 때문에 같은 값이 반환된다. (위의 상황과 비교해보아도 많은 Mismatch가 일어난다.)
   - 객체답게 모델링을 할수록 매핑작업만 늘어나고 더 힘들어진다. (SQL에 맞춰서 데이터를 전송하는 역할로만 설계할 수 밖에 없는 이유.... ROI가 안나온다.)
+  - DAO 와 DTO
+    - DAO : Database의 data에 접근을 위한 객체
+    - DTO : VO(Value Object)로 바꿔 말할 수 있는데 계층간 데이터 교환을 위한 자바빈즈를 말함
+
+2. JPA 소개
+  - JPA는 애플리케이션과 JDBC 사이에서 동작
+    - (Java 애플리케이션 {JPA (JDBC API)})  <===(SQL을 호출, DB로부터 반환받음)===>  DB
+  - JPA 동작 (저장)
+    - Entity 분석
+    - INSERT SQL 생성
+    - JDBC API 사용
+    - 패러다임 불일치 해결
+  - JPA 동작 (조회)
+    - SELECT SQL 조회
+    - JDBC API 사용
+    - ResultSet 매핑
+    - 패러다임 불일치 해결
+  - JPA 소개
+    - EJB 엔티티 빈 (자바표준)
+      - SI에서 개발하던 외국 개발자가 너무 아마추어 적이고, 인터페이스 과한 구현, 속도 느림, 기능도 동작 안했기 때문에 거의 안쓰다가 자신이 만들어도 더 잘만들겠다고 해서 하이버네이트를 만듦
+    - 하이버네이트
+      - 오픈소스로 개발함, 거칠게 코딩됨
+    - JPA (JPA는 인터페이스의 모음)
+      - Java에서 반성하고, 하이버네이트를 거의 복사 붙여넣기 식으로 하여 부드럽게 다듬고, 용어정리를 하여 표준스펙으로 만든 것
+  - JPA를 왜 사용해야 하는가? (JPA를 사용하면 자바 컬렉션처럼 사용할 수 있다!)
+    - SQL 중심적인 개발에서 객체 중심으로 개발
+    - 생산성 (JPA와 CRUD)
+      - 저장: jpa.persist(member)
+      - 조회: Member member = jpa.find(memberId)
+      - 수정: member.setName("변경할 이름")
+      - 삭제: jpa.remove(member)
+    - 유지보수 (JPA: 필드만 추가하면 됨, SQL은 JPA가 처리)
+    - 패러다임의 불일치 해결
+      - 1. JPA와 상속
+        - 저장
+          - jpa.persist(album); // 이렇게 저장하게 되면
+          - INSERT INTO ITEM ...
+          - INSERT INTO ALBUM ... // 알아서 쪼개서 다 적용시켜준다.
+        - 조회
+          - Album album = jpa.find(Album.class, albumId); // 이렇게 앨범에 PK값 넣어서 조회해주면
+          - SELECT I.*, A.*
+          - FROM ITEM I
+          - JOIN ALBUM A ON  I.ITEM_ID = A.ITEM_ID // 이렇게 JPA가 JOIN해서 처리해준다.
+      - 2. JPA와 연관관계, 객체 그래프 탐색
+        - 연관관계 저장
+          - member.setTeam(team);
+          - jpa.persist(member);
+        - 객체 그래프 탐색
+          - Member member = jpa.find(Member.class, memberId);
+          - Team team = member.getTeam();
+      - 3. 신뢰할 수 있는 엔티티, 계층 (JPA를 통해 DAO 객체를 가져왔다면, 신뢰하고 자유롭게 탐색할 수 있다. 지연로딩이라는 기능이 있음)
+        - Member member = memberDAO.find(memberId);
+        - member.getTeam();  // 자유로운 객체 그래프 탐색
+        - member.getOrder().getDelivery();
+      - 4. JPA와 비교하기
+        - 동일한 트랙잭션에서 조회한 엔티티는 같음을 보장
+        - 컬렉션처럼 같은 값을 find() 했을 때, 결과값은 (member1 == member2) 같다.
+    - 성능 (JPA의 성능 최적화 기능)
+      - 1. 1차 캐시와 동일성(identity) 보장
+        - 같은 트랜젝션 안에서는 같은 엔티티를 반환 - 약간의 조회 성능 향상
+          - 한 고객의 트랜잭션 요청이 있는동안 동일성을 보장하는 것, 굉장히 짧은 시간의 캐싱
+        - DB Isolation Level이 Read Commit이어도 애플리케이션에서 Repeatable Read 보장
+      - 2. 트랜잭션을 지원하는 쓰기 지연(transaction write-behind) INSERT
+        - 1. 트랜잭션을 커밋할 때까지 INSERT SQL을 모음
+        - 2. JDBC BATCH SQL 기능을 사용해서 한 번에 SQL 전송
+        - 즉, 커밋할 때, 옵션 하나만 켜두면 커밋하는 순간 쿼리를 한 번에 쫙 보내준다. 개발자가 디테일하게 신경안써도 됨
+      - 3. 지연 로딩(Lazy Loading)
+        - 지연 로딩: 객체가 실제 사용될 때 로딩
+          - 문제는 네트워크를 2번 사용함
+          - 하지만 항상 같이사용하는 경우에는 옵션을 통해 Member를 가져올 때 Team을 같이 가져오도록 설정할 수 있음 이 때, 즉시 로딩 사용
+        - 즉시 로딩: JOIN SQL로 한 번에 연관된 객체까지 미리 조회
+    - 데이터 접근 추상화와 벤더 독립성
+    - 표준
+  - ORM은 객체와 RDB 두 기둥위에 있는 기술
+    - 관계형 데이터 베이스가 더 중요하기 때문에 공부를 소흘리 해서는 안됨
+    
